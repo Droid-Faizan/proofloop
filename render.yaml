@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: proofloop
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true
+    envVars:
+      - key: BACKBOARD_API_KEY
+        sync: false
+      - key: MODEL_NAME
+        value: google/gemma-3-4b-it:free
