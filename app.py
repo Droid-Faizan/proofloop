@@ -1,5 +1,6 @@
 import asyncio
 import html
+import json
 import os
 import re
 import textwrap
@@ -332,6 +333,29 @@ ul[role="listbox"] [role="option"]:hover, ul[role="listbox"] [role="option"][ari
 .status-contradicted { color:var(--pl-status-bad-text); background:var(--pl-status-bad-bg); }
 .status-not-evidenced { color:var(--pl-status-warn-text); background:var(--pl-status-warn-bg); }
 .correction-box { border:1px solid var(--pl-accent-border); background:var(--pl-accent-soft); border-radius:12px; padding:1rem 1.1rem; color:var(--pl-ink); font-size:.95rem; line-height:1.7; }
+.correction-code-text {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 3.55rem;
+  margin: .45rem 0 .15rem;
+  padding: .95rem 1rem;
+  border: 1px solid var(--pl-border) !important;
+  border-radius: 10px;
+  background: var(--pl-control) !important;
+  background-color: var(--pl-control) !important;
+  background-image: none !important;
+  color: var(--pl-ink) !important;
+  -webkit-text-fill-color: var(--pl-ink) !important;
+  font: 500 .84rem/1.7 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  user-select: text;
+  -webkit-user-select: text;
+  box-shadow: none;
+}
+
 .correction-label { color:var(--pl-accent); font-size:.67rem; letter-spacing:.1em; text-transform:uppercase; font-weight:800; margin-bottom:.4rem; }
 [data-testid="stCodeBlock"] { border:1px solid var(--pl-border) !important; border-radius:10px !important; }
 [data-testid="stCodeBlock"] pre { background:var(--pl-bg) !important; }
@@ -421,23 +445,269 @@ if is_dark:
     .hero::before { background: radial-gradient(circle, rgba(98,230,213,.12) 0%, rgba(93,116,230,.07) 38%, transparent 72%); }
     .model-pill, .hero-pill { backdrop-filter: blur(8px); }
     [data-testid="stVerticalBlockBorderWrapper"] { background: rgba(16,26,43,.76) !important; }
-    [data-testid="stSelectbox"] [data-baseweb="select"] > div { background: #0D1727 !important; }
-    div[data-baseweb="popover"], div[data-baseweb="popover"] > div,
-    div[data-baseweb="popover"] [data-baseweb="menu"],
-    div[data-baseweb="popover"] ul[role="listbox"], ul[role="listbox"] {
-      background: #121F31 !important; color: #EAF4FF !important; border-color: #2B4058 !important;
-    }
-    div[data-baseweb="popover"] [role="option"], li[role="option"] { color: #EAF4FF !important; }
-    div[data-baseweb="popover"] [role="option"]:hover,
-    div[data-baseweb="popover"] [role="option"][aria-selected="true"],
-    li[role="option"]:hover, li[role="option"][aria-selected="true"] {
-      background: #173A49 !important; color: #F2FFFD !important;
-    }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
     }
     </style>
     """, unsafe_allow_html=True)
+
+# Final component theme overrides. These use the selected palette directly and are
+# emitted after all theme CSS so Streamlit/BaseWeb cannot leave selectboxes in its
+# default dark surface when the app is in Light mode.
+control_theme_css = f"""
+<style>
+/* Select control outer shell */
+html, body, .stApp, [data-testid="stAppViewContainer"] {{
+  color-scheme: {palette["color_scheme"]};
+}}
+[data-testid="stSelectbox"] [data-baseweb="select"],
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {{
+  color-scheme: {palette["color_scheme"]} !important;
+}}
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {{
+  background: {palette["control"]} !important;
+  background-color: {palette["control"]} !important;
+  border: 1px solid {palette["border"]} !important;
+  border-radius: 11px !important;
+  color: {palette["ink"]} !important;
+  box-shadow: none !important;
+}}
+/* BaseWeb wraps label/value/clear/arrow in nested elements. Keep those transparent
+   so none can paint the default dark grey panel over the themed outer shell. */
+[data-testid="stSelectbox"] [data-baseweb="select"] > div > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] > div > div > div,
+[data-testid="stSelectbox"] [data-baseweb="select"] [role="combobox"],
+[data-testid="stSelectbox"] [data-baseweb="select"] [role="combobox"] *,
+[data-testid="stSelectbox"] [data-baseweb="select"] input,
+[data-testid="stSelectbox"] [data-baseweb="select"] span {{
+  background: transparent !important;
+  background-color: transparent !important;
+  color: {palette["ink"]} !important;
+  -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+[data-testid="stSelectbox"] [data-baseweb="select"] svg {{
+  color: {palette["muted"]} !important;
+  fill: {palette["muted"]} !important;
+}}
+[data-testid="stSelectbox"] [data-baseweb="select"]:focus-within > div {{
+  border-color: {palette["accent"]} !important;
+  box-shadow: 0 0 0 3px {palette["accent_soft"]} !important;
+}}
+/* Dropdown options are portalled outside the widget, so theme the menu too. */
+body div[data-baseweb="popover"],
+body div[data-baseweb="popover"] > div,
+body div[data-baseweb="popover"] [data-baseweb="menu"],
+body div[data-baseweb="popover"] [data-baseweb="list"],
+body div[data-baseweb="popover"] ul[role="listbox"],
+body ul[role="listbox"] {{
+  color-scheme: {palette["color_scheme"]} !important;
+  background: {palette["card"]} !important;
+  background-color: {palette["card"]} !important;
+  border-color: {palette["border"]} !important;
+  color: {palette["ink"]} !important;
+}}
+body div[data-baseweb="popover"] [role="option"],
+body div[data-baseweb="popover"] [role="option"] *,
+body ul[role="listbox"] [role="option"],
+body ul[role="listbox"] [role="option"] * {{
+  background: transparent !important;
+  background-color: transparent !important;
+  color: {palette["ink"]} !important;
+  -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+body div[data-baseweb="popover"] [role="option"]:hover,
+body div[data-baseweb="popover"] [role="option"][aria-selected="true"],
+body ul[role="listbox"] [role="option"]:hover,
+body ul[role="listbox"] [role="option"][aria-selected="true"] {{
+  background: {palette["accent_soft"]} !important;
+  background-color: {palette["accent_soft"]} !important;
+  color: {palette["ink"]} !important;
+  -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+/* Make the suggested-caption code block use the same palette instead of Streamlit's
+   default near-black code surface in the Light theme. */
+[data-testid="stCodeBlock"],
+[data-testid="stCodeBlock"] > div,
+[data-testid="stCodeBlock"] pre,
+[data-testid="stCodeBlock"] pre > div,
+[data-testid="stCodeBlock"] code {{
+  background: {palette["control"]} !important;
+  background-color: {palette["control"]} !important;
+  color: {palette["ink"]} !important;
+  -webkit-text-fill-color: {palette["ink"]} !important;
+  border-color: {palette["border"]} !important;
+}}
+[data-testid="stCodeBlock"] pre,
+[data-testid="stCodeBlock"] code {{
+  border-radius: 9px !important;
+}}
+[data-testid="stCodeBlock"] pre span,
+[data-testid="stCodeBlock"] code span {{
+  color: {palette["ink"]} !important;
+  -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+[data-testid="stCodeBlock"] button {{
+  color: {palette["muted"]} !important;
+}}
+
+/* High-specificity compatibility overrides for Streamlit/BaseWeb releases that
+   paint their own fill on wrapper nodes or inherit the browser's old theme. */
+html body div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+html body div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover,
+html body div[data-testid="stSelectbox"] div[data-baseweb="select"] > div:focus-within {{
+  background: {palette["control"]} !important;
+  background-color: {palette["control"]} !important;
+  color: {palette["ink"]} !important;
+  border-color: {palette["border"]} !important;
+}}
+html body div[data-testid="stSelectbox"] div[data-baseweb="select"] > div > div,
+html body div[data-testid="stSelectbox"] div[data-baseweb="select"] > div > div > div {{
+  background: transparent !important;
+  background-color: transparent !important;
+  color: {palette["ink"]} !important;
+  -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+html body div[data-testid="stCodeBlock"],
+html body div[data-testid="stCodeBlock"] div,
+html body div[data-testid="stCodeBlock"] pre,
+html body div[data-testid="stCodeBlock"] code,
+html body div[data-testid="stCodeBlock"] pre > div {{
+  background: {palette["control"]} !important;
+  background-color: {palette["control"]} !important;
+  background-image: none !important;
+  color: {palette["ink"]} !important;
+  -webkit-text-fill-color: {palette["ink"]} !important;
+  border-color: {palette["border"]} !important;
+}}
+html body div[data-testid="stCodeBlock"] button {{
+  background: {palette["surface"]} !important;
+  background-color: {palette["surface"]} !important;
+  color: {palette["muted"]} !important;
+}}
+</style>
+"""
+
+st.markdown(control_theme_css, unsafe_allow_html=True)
+
+# Final, broad compatibility layer for Streamlit/BaseWeb select controls.
+# Some Streamlit builds render the select's painted surface on a different nested
+# wrapper than expected; target all selectbox descendants with the active palette.
+select_compat_css = f"""
+<style>
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"],
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div,
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:hover,
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus,
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div:focus-within,
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] [role="combobox"],
+html body .stApp [data-testid="stSelectbox"] select {{
+    color-scheme: {palette["color_scheme"]} !important;
+    background: {palette["control"]} !important;
+    background-color: {palette["control"]} !important;
+    color: {palette["ink"]} !important;
+    -webkit-text-fill-color: {palette["ink"]} !important;
+    border-color: {palette["border"]} !important;
+}}
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div > div,
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div > div > div,
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] [role="combobox"] > div,
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] [role="combobox"] span {{
+    background: transparent !important;
+    background-color: transparent !important;
+    color: {palette["ink"]} !important;
+    -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+html body .stApp [data-testid="stSelectbox"] [data-baseweb="select"] svg {{
+    color: {palette["muted"]} !important;
+    fill: {palette["muted"]} !important;
+}}
+html body .stApp [data-baseweb="popover"],
+html body .stApp [data-baseweb="popover"] > div,
+html body .stApp [data-baseweb="popover"] [role="listbox"],
+html body .stApp [data-baseweb="popover"] [role="option"] {{
+    color-scheme: {palette["color_scheme"]} !important;
+    background-color: {palette["card"]} !important;
+    color: {palette["ink"]} !important;
+    -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+</style>
+"""
+
+st.markdown(select_compat_css, unsafe_allow_html=True)
+
+# Streamlit's newer Selectbox uses React Aria instead of BaseWeb. DevTools shows
+# the visible fill on `.react-aria-ComboBox [role="group"]`, so style that actual
+# element using the currently selected ProofLoop palette. The previous BaseWeb
+# selectors cannot affect this rendered DOM.
+react_aria_select_css = f"""
+<style>
+/* Collapsed select controls (sample case and review type) */
+html body .stApp .stSelectbox .react-aria-ComboBox,
+html body .stApp [data-testid="stSelectbox"] .react-aria-ComboBox {{
+    color-scheme: {palette["color_scheme"]} !important;
+}}
+html body .stApp .stSelectbox .react-aria-ComboBox [role="group"],
+html body .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"],
+html body .stApp .stSelectbox .react-aria-ComboBox [role="group"]:hover,
+html body .stApp .stSelectbox .react-aria-ComboBox [role="group"]:focus-within {{
+    background: {palette["control"]} !important;
+    background-color: {palette["control"]} !important;
+    color: {palette["ink"]} !important;
+    -webkit-text-fill-color: {palette["ink"]} !important;
+    border: 1px solid {palette["border"]} !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+}}
+html body .stApp .stSelectbox .react-aria-ComboBox [role="group"] *,
+html body .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"] * {{
+    color: {palette["ink"]} !important;
+    -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+html body .stApp .stSelectbox .react-aria-ComboBox [role="group"] button,
+html body .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"] button {{
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}}
+html body .stApp .stSelectbox .react-aria-ComboBox [role="group"] svg,
+html body .stApp [data-testid="stSelectbox"] .react-aria-ComboBox [role="group"] svg {{
+    color: {palette["muted"]} !important;
+    fill: {palette["muted"]} !important;
+}}
+
+/* React Aria dropdown popover and options; popovers may be rendered in a portal. */
+html body .react-aria-Popover,
+html body .react-aria-Popover [role="listbox"],
+html body .react-aria-ListBox,
+html body [role="listbox"].react-aria-ListBox {{
+    color-scheme: {palette["color_scheme"]} !important;
+    background: {palette["card"]} !important;
+    background-color: {palette["card"]} !important;
+    border-color: {palette["border"]} !important;
+    color: {palette["ink"]} !important;
+}}
+html body .react-aria-ListBox [role="option"],
+html body .react-aria-ListBox [role="option"] *,
+html body .react-aria-Popover [role="option"],
+html body .react-aria-Popover [role="option"] * {{
+    background: transparent !important;
+    background-color: transparent !important;
+    color: {palette["ink"]} !important;
+    -webkit-text-fill-color: {palette["ink"]} !important;
+}}
+html body .react-aria-ListBox [role="option"][data-focused],
+html body .react-aria-ListBox [role="option"][data-selected],
+html body .react-aria-Popover [role="option"][data-focused],
+html body .react-aria-Popover [role="option"][data-selected] {{
+    background: {palette["accent_soft"]} !important;
+    background-color: {palette["accent_soft"]} !important;
+    color: {palette["ink"]} !important;
+}}
+</style>
+"""
+st.markdown(react_aria_select_css, unsafe_allow_html=True)
+
 
 
 def render_interactive_hero(model_label: str, mascot_status: str) -> None:
@@ -1293,7 +1563,7 @@ def build_prompt(evidence_text: str, guideline_text: str, caption_text: str, sel
     State whether the caption follows the supplied guideline and why.
 
     ## Suggested correction
-    Give one concise corrected caption. Do not include details beyond the evidence.
+    Return ONLY the corrected caption as plain text on one line. Do not add a label such as "A concise corrected caption:", do not wrap the caption in quotation marks, and do not use Markdown bold or italics (no **, __, or * markers). Do not include details beyond the evidence.
 
     ## Reviewer confidence
     High, Medium, or Low, with one brief reason. Confidence refers to how clearly the supplied evidence supports this review, not certainty about unseen footage.
@@ -1359,6 +1629,54 @@ def clean_markdown_fences(text: str) -> str:
     return cleaned.strip()
 
 
+def clean_suggested_caption(text: str) -> str:
+    """Return a paste-ready caption without Markdown decoration or intro labels."""
+    cleaned = clean_markdown_fences(text)
+    cleaned = cleaned.replace("\r\n", "\n").replace("\r", "\n").strip()
+
+    # Models sometimes return a label followed by the caption on the same or next line.
+    intro_pattern = re.compile(
+        r"^\s*(?:[-*]\s*)?(?:a\s+)?(?:(?:concise|suggested|corrected|proposed|revised)\s+)*(?:caption|correction)(?:\s+is)?\s*:\s*",
+        flags=re.IGNORECASE,
+    )
+    cleaned = intro_pattern.sub("", cleaned, count=1).strip()
+    if not cleaned and text:
+        cleaned = (text or "").strip()
+
+    # Strip Markdown emphasis wrappers and any stray formatting markers.
+    cleaned = re.sub(r"(?<!\w)(?:\*\*|__)(.+?)(?:\*\*|__)(?!\w)", r"\1", cleaned)
+    cleaned = cleaned.replace("**", "").replace("__", "")
+    cleaned = re.sub(r"(?<!\w)\*(.*?)\*(?!\w)", r"\1", cleaned)
+    cleaned = cleaned.replace("*", "")
+
+    # The corrected caption is a single annotation, not a Markdown blockquote/bullet.
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    if len(lines) > 1:
+        # If a model puts an introductory label on its own line, discard that line.
+        first = lines[0].strip().rstrip(":")
+        if re.search(r"\b(?:caption|correction|suggested|concise|corrected)\b", first, re.I):
+            lines = lines[1:]
+        cleaned = " ".join(lines)
+    else:
+        cleaned = " ".join(lines)
+
+    cleaned = re.sub(r"^\s*(?:[-•>]\s+)", "", cleaned).strip()
+    # Remove only outer quote characters; preserve apostrophes inside the caption.
+    quote_pairs = [("“", "”"), (""", """), ("‘", "’"), ("'", "'")]
+    for opening, closing in quote_pairs:
+        if len(cleaned) >= 2 and cleaned.startswith(opening) and cleaned.endswith(closing):
+            cleaned = cleaned[len(opening):-len(closing)].strip()
+            break
+    # Catch labels with a bold caption or unusual punctuation still attached.
+    cleaned = re.sub(
+        r"^\s*(?:a\s+)?(?:(?:concise|suggested|corrected|proposed|revised)\s+)*(?:caption|correction)(?:\s+is)?\s*:\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip()
+    return cleaned
+
+
 def parse_markdown_table(markdown: str) -> Optional[tuple]:
     lines = [line.strip() for line in (markdown or "").splitlines() if "|" in line]
     if len(lines) < 2:
@@ -1415,7 +1733,7 @@ def render_report(report: str) -> None:
     audit = sections.get("claim-by-claim evidence audit", "No claim audit was returned.")
     missing = sections.get("missing or incomplete actions", "No missing-action assessment was returned.")
     guideline = sections.get("guideline check", "No guideline check was returned.")
-    correction = clean_markdown_fences(sections.get("suggested correction", "No correction was returned."))
+    correction = clean_suggested_caption(sections.get("suggested correction", "No correction was returned."))
     confidence = sections.get("reviewer confidence", "No confidence assessment was returned.")
 
     verdict_label = find_leading_label(verdict, ["Accurate", "Partly accurate", "Inaccurate", "Cannot determine"], "Review")
@@ -1465,8 +1783,74 @@ def render_report(report: str) -> None:
         with badge_col:
             st.markdown('<div style="text-align:right;color:var(--pl-muted);font-size:.72rem;">Ready to reuse</div>', unsafe_allow_html=True)
         st.markdown('<div class="correction-box">' + html.escape(correction).replace(chr(10), "<br>") + '</div>', unsafe_allow_html=True)
-        st.caption("Use the copy control in the code block below, or download the correction as a text file.")
-        st.code(correction, language=None, wrap_lines=True)
+        # Theme-aware visible copy control. A normal Streamlit button cannot write
+        # to the visitor's clipboard directly, so this small component uses the
+        # browser Clipboard API with a legacy user-gesture fallback.
+        copy_text_js = json.dumps(correction, ensure_ascii=False)
+        correction_html = f"""
+        <html><head><meta charset="utf-8"><style>
+          html, body {{ margin:0; padding:0; background:transparent; color:{palette['ink']};
+            font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
+          .copy-wrap {{ box-sizing:border-box; display:flex; align-items:center; gap:12px;
+            width:100%; min-height:58px; padding:9px 10px; border:1px solid {palette['border']};
+            border-radius:10px; background:{palette['control']}; color:{palette['ink']}; }}
+          .copy-caption {{ flex:1; min-width:0; white-space:pre-wrap; overflow-wrap:anywhere;
+            line-height:1.6; font:500 13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+            user-select:text; }}
+          .copy-btn {{ flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; gap:7px;
+            min-height:38px; padding:0 12px; border-radius:8px; border:1px solid {palette['accent_border']};
+            background:{palette['accent_soft']}; color:{palette['accent']}; font:650 12px/1.2 Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+            cursor:pointer; transition:background .16s ease,border-color .16s ease,transform .16s ease; }}
+          .copy-btn:hover {{ transform:translateY(-1px); border-color:{palette['accent']}; }}
+          .copy-btn:focus-visible {{ outline:2px solid {palette['accent']}; outline-offset:2px; }}
+          .feedback {{ min-height:15px; padding:3px 2px 0; color:{palette['muted']}; font-size:11px; line-height:1.35; }}
+          @media (max-width:540px) {{ .copy-wrap {{ align-items:flex-start; flex-direction:column; }} .copy-btn {{ align-self:flex-end; }} }}
+          @media (prefers-reduced-motion:reduce) {{ *,*::before,*::after {{ transition:none !important; }} }}
+        </style></head><body>
+          <div class="copy-wrap" role="group" aria-label="Corrected caption and copy action">
+            <div class="copy-caption" id="pl-copy-caption">{html.escape(correction)}</div>
+            <button class="copy-btn" id="pl-copy-btn" type="button" aria-label="Copy corrected caption">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><rect x="8" y="8" width="11" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M16 8V5.8A1.8 1.8 0 0 0 14.2 4H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <span id="pl-copy-label">Copy correction</span>
+            </button>
+          </div>
+          <div class="feedback" id="pl-copy-feedback" aria-live="polite"></div>
+          <script>
+          (() => {{
+            const btn = document.getElementById('pl-copy-btn');
+            const label = document.getElementById('pl-copy-label');
+            const feedback = document.getElementById('pl-copy-feedback');
+            const caption = {copy_text_js};
+            btn.addEventListener('click', async () => {{
+              let ok = false;
+              try {{
+                if (navigator.clipboard && window.isSecureContext) {{
+                  await navigator.clipboard.writeText(caption); ok = true;
+                }}
+              }} catch (e) {{ /* Use copy fallback from the click gesture. */ }}
+              if (!ok) {{
+                try {{
+                  const area = document.createElement('textarea'); area.value = caption;
+                  area.setAttribute('readonly', ''); area.style.position = 'fixed';
+                  area.style.opacity = '0'; area.style.left = '-10000px'; document.body.appendChild(area);
+                  area.focus(); area.select(); ok = document.execCommand('copy'); area.remove();
+                }} catch (e) {{ ok = false; }}
+              }}
+              if (ok) {{
+                label.textContent = 'Copied ✓'; feedback.textContent = 'Copied to clipboard.';
+                btn.style.background = '{palette['accent']}'; btn.style.color = '{palette['on_accent']}';
+                window.setTimeout(() => {{ label.textContent = 'Copy correction'; feedback.textContent = ''; btn.style.background = '{palette['accent_soft']}'; btn.style.color = '{palette['accent']}'; }}, 1800);
+              }} else {{
+                feedback.textContent = 'Clipboard blocked by browser. Select the caption text and press Ctrl+C (or ⌘+C).';
+                const range = document.createRange(); range.selectNodeContents(document.getElementById('pl-copy-caption'));
+                const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+              }}
+            }});
+          }})();
+          </script>
+        </body></html>
+        """
+        components.html(correction_html, height=86, scrolling=False)
         st.download_button(
             "Download corrected caption",
             data=correction,
