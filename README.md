@@ -1,71 +1,95 @@
-# ProofLoop — Evidence-first annotation QA
+# ProofLoop — Annotation Guideline Checker
 
-ProofLoop helps an annotation reviewer compare a proposed caption against supplied evidence and guidelines. It highlights claims that are supported, contradicted, or not evidenced; identifies omitted actions; and drafts a correction.
+ProofLoop is a **text-only annotation quality checker**. Paste the actual task guidelines and an annotator's response; ProofLoop evaluates the response against the supplied rules, identifies specific issues, and suggests a corrected version. It does not accept image/video uploads or fill the form with sample data.
 
-## What this MVP does
+## Core workflow
 
-- Reviews text evidence, a caption, and the applicable guideline.
-- Produces a claim-by-claim audit with evidence-based reasons.
-- Suggests one concise corrected caption.
-- Lets the user download the report as Markdown.
-- Calls an open-weight Gemma model through Backboard's API.
-- Can be deployed to Render with the included `render.yaml`.
+1. Paste the task instructions and evaluation criteria.
+2. Choose **Single answer review** for a caption, annotation, written response, or feedback statement; or **Comparison / feedback review** to supply Output A, Output B, and the annotator's comparison.
+3. Submit for a structured verdict, specific issues, explanations, suggestions, confidence, limitations, and a copy-ready correction.
+4. Copy or download the correction or full report.
 
-**Important limitation:** this version does not process video. The reviewer provides the evidence text/timestamps, and ProofLoop checks the caption against that evidence. It must not be presented as if it independently watched or verified a video.
+When an API key is missing or the model cannot return a valid structured response, the app reports the problem rather than inventing a successful verdict.
 
-## Run locally in GitHub Codespaces
+## UI features
 
-1. Open this repository in a Codespace.
-2. In the terminal, install dependencies:
+- Clear purpose statement and three-step workflow.
+- Responsive desktop/tablet/mobile layout with explicit contrast on labels and input fields.
+- In-app Light/Dark appearance setting; the Streamlit developer toolbar is hidden so users do not confuse its three-dot menu with product navigation.
+- The animated **Loop** mascot is restored from the earlier ProofLoop version: click to wave, drag and drop it on supported page areas, see reactions/moods, and use its return-home control. The sidebar has a Show Loop mascot setting.
+- Empty input fields, with no demo or sample-case data.
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+## Project structure
 
-3. Create an API key in the Backboard dashboard.
-4. Set the key in the terminal (do not paste the actual key into source code):
-
-   ```bash
-   export BACKBOARD_API_KEY="paste-your-key-here"
-   ```
-
-5. Start the app:
-
-   ```bash
-   streamlit run app.py
-   ```
-
-6. Open the forwarded Streamlit port (usually 8501) when Codespaces offers it.
-
-## Model selection
-
-By default, the app requests `google/gemma-3-4b-it:free` through OpenRouter via Backboard. Free endpoints can be rate-limited and model availability may change. If this model is unavailable, choose an available Gemma/open-weight model in Backboard's model catalogue and set its exact provider/model identifier before starting the app, for example:
-
-```bash
-export MODEL_NAME="provider/model-id-from-the-catalogue"
+```text
+app.py                     Streamlit UI, settings, input workflow, and result rendering
+proofloop/prompts.py       Prompt composition from actual user-supplied text
+proofloop/llm_client.py    Server-side Backboard/OpenRouter client wrapper
+proofloop/evaluator.py     Input validation and structured-response parsing
+proofloop/mascot.py        Restored interactive Loop mascot widget
+tests/test_evaluator.py   Offline unit tests (no AI API calls)
+requirements.txt           Python dependencies
+.env.example               Configuration example only
 ```
 
-Keep `BACKBOARD_API_KEY` private. Do not commit it to GitHub.
+## Run in GitHub Codespaces
 
-## Deploy to Render
+Python 3.10+ is recommended. In the Codespaces terminal, run:
 
-1. Push this repository to GitHub.
-2. In Render, choose **New → Blueprint** and select the repository, or create a Python web service manually.
-3. If using the Blueprint, supply `BACKBOARD_API_KEY` when prompted. If creating a service manually, use:
-   - Build command: `pip install -r requirements.txt`
-   - Start command: `streamlit run app.py --server.address 0.0.0.0 --server.port $PORT --server.headless true`
-4. Add `BACKBOARD_API_KEY` in Render's Environment settings. Keep the API key out of source control.
-5. Deploy and test the public URL with the demo case.
+```bash
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python -m streamlit run app.py
+```
 
-## Suggested validation cases
+Open the forwarded port `8501` in the browser.
 
-1. **Unsupported action + missing action:** evidence says “picks up cup, then drinks”; caption says “makes coffee”. Expected: “makes coffee” is not evidenced and drinking is omitted.
-2. **Supported caption:** evidence says “opens a door and walks through”; caption says the same. Expected: accurate, no missing action.
-3. **Direct contradiction:** evidence says “the person sits down”; caption says “the person remains standing.” Expected: contradicted.
-4. **Insufficient evidence:** evidence only says “a person is in a room”; caption says “a person opens a drawer.” Expected: cannot verify / not evidenced, not automatically contradicted.
+## Configure live AI reviews
 
-## Honest demo claims
+The app uses a Backboard client configured for OpenRouter by default. Create a Codespaces secret named `BACKBOARD_API_KEY`, grant it access to the repository, then restart the Codespace. Optional settings:
 
-Good: “ProofLoop uses an open-weight Gemma model to audit captions against supplied evidence and annotation rules.”
+```text
+LLM_PROVIDER=openrouter
+MODEL_NAME=openai/gpt-4o-mini
+```
 
-Avoid claiming that it watches videos, guarantees correctness, is fully private, or has zero ongoing inference costs. Inputs are sent to Backboard and the selected model provider. Human reviewers make the final decision.
+Never commit API keys or `.streamlit/secrets.toml` to GitHub.
+
+## Tests and limitations
+
+The offline tests validate required inputs and response parsing; they do not make live AI calls. A valid Backboard API key and working configured model are required for a real review. The AI can only evaluate supplied text: it cannot verify details that depend on unseen source material. Treat results as review assistance, not an automatic guarantee of correctness.
+
+
+## Mascot animation update
+
+Loop is a 2D SVG/CSS/JavaScript character (not a real-time 3D rig). It has a boot-up thruster/smoke sequence, continuous hover, expressive face states, and timed idle actions such as curious head tilts, stretching, a happy bounce, a face scan, and a short hover drift. Drag Loop to the home scene, step cards, or review button to see its landing/reaction behavior. The home scene rotates between Nebula Garden, Orbit Station, and Aurora Drift. Reduced-motion preferences are respected.
+
+The existing Backboard/OpenRouter configuration is unchanged. Live reviews still require `BACKBOARD_API_KEY` in the environment.
+
+
+
+## UI refresh v6 — Cosmic Loop
+
+- Compact Loop sizing: 98×118 px on desktop and 78×94 px on small screens.
+- A shorter 212 px desktop home scene, responsive down to 184 px on narrow phones.
+- An original orbital/check brand mark used in the app header and sidebar; the browser page icon is a planet.
+- Consistent space palette: deep navy, nebula indigo, aurora cyan, lavender shell, luminous cyan eyes, and violet engine glow. The mascot home stays in the space theme in both Light and Dark content modes.
+- Three clearly named rotating scenes: Nebula Garden, Orbit Station, and Aurora Drift, with star drift, a planet, orbit rings, an occasional comet, and a glowing landing platform.
+- Eight home idle actions: curious tilt, stretch, scan, cheer, drift, goofy wobble, tiny dance, and antenna-propeller spin. These play at random after a short pause while Loop is docked at home.
+- Existing dragging, perching, return-home, success/error reactions, and Backboard/OpenRouter model settings are preserved.
+
+The idle motions are original 2D SVG/CSS animations, not a complete 3D rig. Reduced-motion preferences are respected.
+
+
+## v8 appearance and mascot patch
+
+- Both Light and Dark modes now theme the hero board, the embedded space scenes, badges, labels, and inline BACKBOARD_API_KEY token.
+- The mascot receives the current theme on every Streamlit rerun: Light mode shifts its shell to pearl/ice tones and warms the eye lights; Dark mode retains the lunar-violet/cyan look.
+- The original SVG character is preserved. A drop now includes a longer, readable face-first pancake/splat pose with animated impact dust and stars, then recovers.
+- Backboard/OpenRouter endpoint and model configuration are unchanged.
+
+
+## v8 fixes
+- Theme-aware Streamlit code blocks, expander headers, and download buttons.
+- Restored the earlier short mascot landing animation; removed the exaggerated splat overlay.
+- Kept the current theme-aware robot appearance, idle actions, drag/perch interactions, and Backboard/OpenRouter configuration.

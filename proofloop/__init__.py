@@ -1,0 +1,1 @@
+"""ProofLoop annotation guideline checker."""
