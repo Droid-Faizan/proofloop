@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import os
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from proofloop.evaluator import parse_review_response, validate_inputs
 from proofloop.llm_client import api_configuration, generate_review
@@ -237,6 +239,7 @@ st.markdown(
       [data-testid="stAlert"] {{ border-radius:12px !important; }}
       .pl-result-head {{ border:1px solid var(--pl-border); border-radius:16px; padding:1.1rem 1.2rem; background:var(--pl-surface); }}
       .pl-verdict {{ color:var(--pl-ink) !important; margin:.2rem 0 .45rem; font-size:1.25rem; font-weight:850; }}
+      .pl-correction-text {{ margin:.75rem 0 .8rem; padding:1rem 1.1rem; border:1px solid var(--pl-code-border); border-radius:12px; background:var(--pl-code-bg); color:var(--pl-code-ink) !important; font:500 .92rem/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; white-space:pre-wrap; overflow-wrap:anywhere; }}
       .pl-footer {{ border-top:1px solid var(--pl-border); margin-top:2rem; padding-top:1rem; color:var(--pl-subtle) !important; font-size:.76rem; line-height:1.6; }}
       .pl-sidebar-note {{ color:var(--pl-muted) !important; font-size:.78rem; line-height:1.55; }}
       @keyframes pl-shimmer {{ 0%,55% {{ transform:translateX(-115%); }} 78%,100% {{ transform:translateX(115%); }} }}
@@ -469,7 +472,132 @@ if review:
     st.markdown("### Suggested final answer")
     st.markdown('<div class="pl-muted">Copy the revised text into your annotation workflow, then verify it against your task policy.</div>', unsafe_allow_html=True)
     if correction:
-        st.code(correction, language=None)
+        st.markdown(
+            f'<div class="pl-correction-text" role="region" aria-label="Corrected answer">{html.escape(correction)}</div>',
+            unsafe_allow_html=True,
+        )
+        copy_text_js = json.dumps(correction, ensure_ascii=False)
+        is_dark = palette["color_scheme"] == "dark"
+        correction_html = f"""
+        <!doctype html>
+        <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+          * {{ box-sizing:border-box; }}
+          html, body {{ margin:0; padding:0; background:transparent; color:{palette['ink']};
+            font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; }}
+          .copy-dock {{ display:flex; align-items:center; justify-content:space-between; gap:14px;
+            width:100%; min-height:68px; padding:11px 12px; border:1px solid {palette['border']};
+            border-radius:13px; background:linear-gradient(115deg,{palette['surface']},{palette['card']});
+            color:{palette['ink']}; }}
+          .copy-main {{ display:flex; align-items:center; gap:10px; min-width:0; flex:1 1 auto; }}
+          .copy-mark {{ display:grid; place-items:center; flex:0 0 38px; width:38px; height:38px;
+            border:1px solid {palette['accent_border']}; border-radius:11px;
+            background:{palette['accent_soft']}; color:{palette['accent']}; }}
+          .copy-mark svg {{ width:18px; height:18px; display:block; }}
+          .copy-copy {{ min-width:0; }}
+          .copy-eyebrow {{ margin:0 0 3px; color:{palette['accent']}; font-size:9px;
+            line-height:1.2; letter-spacing:.13em; font-weight:800; text-transform:uppercase; }}
+          .copy-title {{ margin:0; color:{palette['ink']}; font-size:12.5px; line-height:1.35; font-weight:750; }}
+          .copy-detail {{ margin:3px 0 0; color:{palette['muted']}; font-size:10.5px; line-height:1.35; }}
+          .copy-btn {{ flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+            min-height:40px; padding:0 15px; border:1px solid {palette['accent']}; border-radius:10px;
+            background:{palette['accent']}; color:{palette['on_accent']};
+            font:750 12px/1 Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+            white-space:nowrap; cursor:pointer; user-select:none;
+            box-shadow:0 5px 14px {('rgba(0,0,0,.24)' if is_dark else 'rgba(8,127,112,.15)')};
+            transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease; }}
+          .copy-btn svg {{ display:block; width:15px; height:15px; flex:0 0 15px; }}
+          .copy-btn:hover {{ background:{palette['accent_hover']}; border-color:{palette['accent_hover']};
+            transform:translateY(-1px); }}
+          .copy-btn:active {{ transform:translateY(0) scale(.985); }}
+          .copy-btn:focus-visible {{ outline:2px solid {palette['accent']}; outline-offset:3px; }}
+          .copy-btn.is-copied {{ background:{palette['accent_soft']}; color:{palette['accent']};
+            border-color:{palette['accent_border']}; box-shadow:none; }}
+          .copy-feedback {{ min-height:15px; padding:4px 3px 0; color:{palette['muted']};
+            font-size:10.5px; line-height:1.35; }}
+          @media (max-width:540px) {{
+            .copy-dock {{ gap:8px; padding:10px; min-height:62px; }}
+            .copy-main {{ gap:8px; }} .copy-mark {{ flex-basis:34px; width:34px; height:34px; border-radius:10px; }}
+            .copy-detail {{ display:none; }} .copy-eyebrow {{ font-size:8px; }}
+            .copy-title {{ font-size:11.5px; }} .copy-btn {{ min-height:38px; padding:0 11px; gap:6px; font-size:11.5px; }}
+          }}
+        </style></head><body>
+          <section class="copy-dock" aria-label="Copy suggested correction">
+            <div class="copy-main">
+              <div class="copy-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><rect x="8.5" y="8.5" width="11" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 8.5V6A2 2 0 0 0 13.5 4h-8A2 2 0 0 0 3.5 6v9a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              </div>
+              <div class="copy-copy">
+                <p class="copy-eyebrow">Ready to reuse</p>
+                <p class="copy-title">Copy corrected answer</p>
+                <p class="copy-detail">Copy it once, then paste it into your annotation workflow.</p>
+              </div>
+            </div>
+            <button class="copy-btn" id="pl-copy-btn" type="button" aria-label="Copy corrected answer">
+              <svg id="pl-copy-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 8.5V6A2 2 0 0 0 13.5 4h-8A2 2 0 0 0 3.5 6v9a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <span id="pl-copy-label">Copy correction</span>
+            </button>
+          </section>
+          <div class="copy-feedback" id="pl-copy-feedback" role="status" aria-live="polite"></div>
+          <script>
+          (() => {{
+            const btn = document.getElementById('pl-copy-btn');
+            const label = document.getElementById('pl-copy-label');
+            const icon = document.getElementById('pl-copy-icon');
+            const feedback = document.getElementById('pl-copy-feedback');
+            const correction = {copy_text_js};
+            const copySvg = '<rect x="8.5" y="8.5" width="11" height="12" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M15.5 8.5V6A2 2 0 0 0 13.5 4h-8A2 2 0 0 0 3.5 6v9a2 2 0 0 0 2 2h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>';
+            const checkSvg = '<path d="m5 12.5 4.2 4.2L19.5 6.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+            let resetTimer;
+            btn.addEventListener('click', async () => {{
+              btn.disabled = true;
+              let copied = false;
+              try {{
+                if (navigator.clipboard && window.isSecureContext) {{
+                  await navigator.clipboard.writeText(correction);
+                  copied = true;
+                }}
+              }} catch (error) {{
+                copied = false;
+              }}
+              if (!copied) {{
+                let area;
+                try {{
+                  area = document.createElement('textarea');
+                  area.value = correction; area.setAttribute('readonly', '');
+                  area.style.position = 'fixed'; area.style.top = '0'; area.style.left = '-9999px';
+                  document.body.appendChild(area); area.focus(); area.select();
+                  copied = document.execCommand('copy');
+                }} catch (error) {{
+                  copied = false;
+                }} finally {{
+                  if (area) area.remove();
+                }}
+              }}
+              btn.disabled = false;
+              if (copied) {{
+                clearTimeout(resetTimer);
+                btn.classList.add('is-copied');
+                btn.setAttribute('aria-label', 'Answer copied to clipboard');
+                icon.innerHTML = checkSvg;
+                label.textContent = 'Copied!';
+                feedback.textContent = 'Copied successfully — ready to paste.';
+                resetTimer = window.setTimeout(() => {{
+                  btn.classList.remove('is-copied');
+                  btn.setAttribute('aria-label', 'Copy corrected answer');
+                  icon.innerHTML = copySvg;
+                  label.textContent = 'Copy correction';
+                  feedback.textContent = '';
+                }}, 2200);
+              }} else {{
+                feedback.textContent = 'Clipboard access was blocked. Select the correction above and copy it manually.';
+              }}
+            }});
+          }})();
+          </script>
+        </body></html>
+        """
+        components.html(correction_html, height=100, scrolling=False)
         st.download_button("Download corrected answer (.txt)", data=correction, file_name="proofloop-corrected-answer.txt", mime="text/plain", use_container_width=True)
     else:
         st.info("No corrected answer was generated because the available information was insufficient for a safe rewrite.")
